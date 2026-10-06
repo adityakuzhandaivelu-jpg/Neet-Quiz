@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SnapQuiz">
+<title>NEET SnapQuiz</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+  html,body{background:#0f172a;color:#e2e8f0;font-family:ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  body{padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
+  .dash{border:2px dashed #10b981}
+  .opt{transition:background .15s,border-color .15s}
+  .opt:active{transform:scale(.99)}
+  textarea{font-size:16px}
+  .bar{transition:width .3s}
+</style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-xl mx-auto px-4 pt-6 pb-24">
+
+  <header class="mb-6">
+    <h1 class="text-3xl font-extrabold tracking-tight text-white">NEET <span class="text-[#10b981]">SnapQuiz</span></h1>
+    <p class="text-slate-400 text-sm mt-1">Offline MCQ Scanner &amp; Input Tracker</p>
+    <button id="installBtn" type="button" class="hidden mt-3 px-4 py-2 rounded-lg border border-[#10b981] text-[#10b981] text-sm font-semibold">Install app</button>
+  </header>
+
+  <!-- INPUT -->
+  <section id="inputView">
+    <div class="flex bg-slate-800 rounded-xl p-1 mb-4" role="tablist">
+      <button id="tabScan" class="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-[#10b981] text-slate-900">Scan image</button>
+      <button id="tabPaste" class="flex-1 py-2.5 rounded-lg text-sm font-semibold text-slate-300">Paste text</button>
+    </div>
+
+    <div id="paneScan">
+      <div id="uploadContainer" role="button" tabindex="0" class="dash rounded-2xl bg-slate-800/50 px-6 py-12 text-center cursor-pointer select-none">
+        <svg class="mx-auto mb-3 pointer-events-none" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.5l1.2-2h6.6l1.2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <p class="font-semibold text-white pointer-events-none">Tap to take a photo of a workbook page</p>
+        <p class="text-slate-400 text-xs mt-1 pointer-events-none">10–30 MCQs per page · clear, well-lit, straight-on photos work best</p>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="galleryInput" accept="image/*" class="hidden">
+      <button id="galleryBtn" type="button" class="w-full mt-3 py-3 rounded-xl border border-slate-600 text-slate-200 font-semibold text-sm active:bg-slate-800">Choose from gallery instead</button>
+      <div id="ocrBox" class="hidden mt-4 bg-slate-800 rounded-xl p-4">
+        <div class="flex justify-between text-xs text-slate-300 mb-2"><span id="ocrStatus">Starting…</span><span id="ocrPct">0%</span></div>
+        <div class="h-2 bg-slate-700 rounded-full overflow-hidden"><div id="ocrBar" class="bar h-full bg-[#10b981]" style="width:0"></div></div>
+      </div>
+    </div>
+
+    <div id="panePaste" class="hidden">
+      <textarea id="pasteArea" rows="12" class="w-full bg-slate-800 border border-slate-700 focus:border-[#10b981] focus:outline-none rounded-xl p-3 text-slate-100 placeholder-slate-500" placeholder="Paste MCQs here.&#10;&#10;1. Question text&#10;(A) option  (B) option  (C) option  (D) option&#10;&#10;Optional: add 'Answer Key: 1-B 2-C …' at the end."></textarea>
+      <button id="buildBtn" class="w-full mt-3 py-3.5 rounded-xl bg-[#10b981] text-slate-900 font-bold text-base active:bg-emerald-400">Create quiz</button>
+    </div>
+
+    <p id="msg" class="text-sm mt-3 min-h-[1.25rem]"></p>
+    <a href="#" id="sampleLink" class="inline-block text-[#10b981] underline underline-offset-4 text-sm py-2">Try with a pre-loaded sample NEET biology page</a>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="quizView" class="hidden">
+    <div class="sticky top-0 z-10 -mx-4 px-4 py-3 bg-[#0f172a]/95 backdrop-blur border-b border-slate-800" style="padding-top:calc(.75rem + env(safe-area-inset-top,0px))">
+      <div class="flex items-center justify-between text-sm">
+        <span><b id="answeredCt" class="text-[#10b981]">0</b> / <span id="totalCt">0</span> answered</span>
+        <span id="timer" class="font-mono text-slate-300">00:00</span>
+        <button id="submitBtn" class="px-4 py-2 rounded-lg bg-[#10b981] text-slate-900 font-bold text-sm">Finish</button>
+      </div>
+      <div class="h-1 bg-slate-800 rounded-full mt-2 overflow-hidden"><div id="progBar" class="bar h-full bg-[#10b981]" style="width:0"></div></div>
+    </div>
+    <p id="keyNote" class="text-xs text-amber-300 mt-3"></p>
+    <div id="qList" class="space-y-4 mt-4"></div>
+    <button id="submitBtn2" class="w-full mt-6 py-3.5 rounded-xl bg-[#10b981] text-slate-900 font-bold">Finish &amp; see report</button>
+  </section>
+
+  <!-- REPORT -->
+  <section id="reportView" class="hidden"></section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const LET = ['A','B','C','D'];
+let Q = [], ans = {}, tAns = {}, t0 = 0, timerId = null, reviewed = false;
+
+/* ---------- Tabs ---------- */
+function setTab(scan){
+  $('paneScan').classList.toggle('hidden', !scan);
+  $('panePaste').classList.toggle('hidden', scan);
+  $('tabScan').className = 'flex-1 py-2.5 rounded-lg text-sm font-semibold ' + (scan ? 'bg-[#10b981] text-slate-900' : 'text-slate-300');
+  $('tabPaste').className = 'flex-1 py-2.5 rounded-lg text-sm font-semibold ' + (!scan ? 'bg-[#10b981] text-slate-900' : 'text-slate-300');
+}
+$('tabScan').addEventListener('click', () => setTab(true));
+$('tabPaste').addEventListener('click', () => setTab(false));
+function say(t, bad){ $('msg').textContent = t; $('msg').className = 'text-sm mt-3 min-h-[1.25rem] ' + (bad ? 'text-red-400' : 'text-emerald-300'); }
+
+/* ---------- Upload + OCR ---------- */
+const uc = $('uploadContainer'), fi = $('fileInput');
+uc.addEventListener('click', () => fi.click());
+uc.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fi.click(); } });
+const gi = $('galleryInput');
+$('galleryBtn').addEventListener('click', () => gi.click());
+fi.addEventListener('change', () => handleFile(fi));
+gi.addEventListener('change', () => handleFile(gi));
+
+// Decode (respecting EXIF rotation), resize and grayscale so phone photos don't choke OCR
+async function prep(file){
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch (e) {
+    src = await new Promise((res, rej) => {
+      const im = new Image(), u = URL.createObjectURL(file);
+      im.onload = () => res(im); im.onerror = () => rej(new Error('This image format could not be read')); im.src = u;
+    });
+  }
+  const w = src.width || src.naturalWidth, h = src.height || src.naturalHeight, m = Math.max(w, h);
+  const k = m > 2000 ? 2000 / m : (m < 1000 ? 1600 / m : 1);
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(src, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    let g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+    g = Math.max(0, Math.min(255, (g - 128) * 1.35 + 128));
+    p[i] = p[i + 1] = p[i + 2] = g;
+  }
+  x.putImageData(d, 0, 0);
+  return c;
+}
+
+async function handleFile(input){
+  const f = input.files && input.files[0];
+  if (!f) return;
+  if (typeof Tesseract === 'undefined') { say('OCR engine could not load. Check your connection, or use Paste text.', true); input.value = ''; return; }
+  $('ocrBox').classList.remove('hidden'); say('');
+  $('ocrStatus').textContent = 'Preparing image…'; $('ocrPct').textContent = '0%'; $('ocrBar').style.width = '0';
+  try {
+    const img = await prep(f);
+    const res = await Tesseract.recognize(img, 'eng', { logger: m => {
+      if (m.status) $('ocrStatus').textContent = m.status.charAt(0).toUpperCase() + m.status.slice(1);
+      if (typeof m.progress === 'number') { const p = Math.round(m.progress * 100); $('ocrPct').textContent = p + '%'; $('ocrBar').style.width = p + '%'; }
+    }});
+    $('pasteArea').value = res.data.text.trim();
+    $('ocrBox').classList.add('hidden');
+    const n = parse(res.data.text).length;
+    setTab(false);
+    if (n) say('Scanned ' + n + ' questions. Fix any OCR mistakes below, then tap Create quiz.');
+    else say('Text was read but no questions were detected. Edit it so each question starts with "1." and options with (A)–(D).', true);
+  } catch (err) {
+    $('ocrBox').classList.add('hidden');
+    say('Scan failed: ' + ((err && err.message) || err) + '. Try a clearer photo or paste the text.', true);
+  }
+  input.value = '';
+}
+
+/* ---------- Parser ---------- */
+const L = x => /\d/.test(x) ? (+x - 1) : x.toUpperCase().charCodeAt(0) - 65;
+function parse(raw){
+  let t = raw.replace(/\r/g, '').replace(/[ \t\u00a0]+/g, ' ');
+  t = t.replace(/[\[{(]\s*([A-Da-d1-4])\s*[\]})]/g, '($1)');
+  const keyMap = {};
+  const ki = t.search(/answer\s*key/i);
+  if (ki > -1) {
+    const kp = t.slice(ki); t = t.slice(0, ki);
+    for (const m of kp.matchAll(/(\d{1,3})\s*[-:.)=]\s*\(?([A-Da-d1-4])\)?/g)) keyMap[+m[1]] = L(m[2]);
+  }
+  const out = [];
+  for (const part of t.split(/\n(?=\s*(?:Q\.?\s*)?\d{1,3}\s*[.)]\s)/i)) {
+    const m = part.match(/^\s*(?:Q\.?\s*)?(\d{1,3})\s*[.)]\s*([\s\S]*)/i);
+    if (!m) continue;
+    let body = m[2], a = null;
+    const am = body.match(/\b(?:ans(?:wer)?|correct)\s*[:\-=]\s*\(?([A-Da-d1-4])\)?/i);
+    if (am) { a = L(am[1]); body = body.replace(am[0], ''); }
+    const marks = [];
+    for (const k of body.matchAll(/(?:^|\s)(?:\(([A-Da-d1-4])\)|([A-Da-d])[.)])\s*/g))
+      marks.push({ i: L(k[1] || k[2]), s: k.index, e: k.index + k[0].length });
+    let picks = [], from = -1;
+    for (let w = 0; w < 4; w++) {
+      const f = marks.find(x => x.i === w && x.s > from);
+      if (!f) break;
+      picks.push(f); from = f.s;
+    }
+    if (picks.length < 2) continue;
+    const opts = picks.map((p, j) => body.slice(p.e, j + 1 < picks.length ? picks[j + 1].s : undefined).replace(/\s+/g, ' ').trim());
+    const num = +m[1];
+    if (a === null && keyMap[num] !== undefined) a = keyMap[num];
+    if (a !== null && a >= opts.length) a = null;
+    out.push({ n: num, q: body.slice(0, picks[0].s).replace(/\s+/g, ' ').trim(), o: opts, a });
+  }
+  return out;
+}
+
+/* ---------- Quiz ---------- */
+function startQuiz(text){
+  Q = parse(text);
+  if (!Q.length) { say('No questions found. Start each question with "1." and options with (A), (B), (C), (D).', true); return; }
+  ans = {}; tAns = {}; reviewed = false;
+  $('inputView').classList.add('hidden'); $('reportView').classList.add('hidden'); $('quizView').classList.remove('hidden');
+  const keyed = Q.filter(q => q.a !== null).length;
+  $('keyNote').textContent = keyed === Q.length ? '' : (keyed ? (Q.length - keyed) + ' question(s) have no answer key and won’t be scored.' : 'No answer key found. Your answers are tracked, but the score can’t be calculated.');
+  $('totalCt').textContent = Q.length;
+  render(); updateStats();
+  t0 = Date.now(); clearInterval(timerId);
+  timerId = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); $('timer').textContent = fmt(s); }, 1000);
+  window.scrollTo(0, 0);
+}
+const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+
+function render(){
+  const list = $('qList'); list.innerHTML = '';
+  Q.forEach((q, i) => {
+    const card = document.createElement('article');
+    card.className = 'bg-slate-800/70 border border-slate-700 rounded-2xl p-4';
+    const h = document.createElement('p'); h.className = 'font-semibold text-white mb-3 leading-snug';
+    h.textContent = q.n + '. ' + (q.q || '(question text not detected)'); card.appendChild(h);
+    q.o.forEach((txt, j) => {
+      const b = document.createElement('button');
+      b.className = 'opt w-full text-left flex gap-3 items-start rounded-xl border px-3 py-3.5 mb-2 min-h-[52px] ' + optStyle(i, j);
+      const tag = document.createElement('span'); tag.className = 'shrink-0 w-7 h-7 rounded-full border border-current flex items-center justify-center text-sm font-bold'; tag.textContent = LET[j];
+      const sp = document.createElement('span'); sp.className = 'pt-0.5'; sp.textContent = txt || '—';
+      b.append(tag, sp);
+      b.addEventListener('click', () => pick(i, j));
+      card.appendChild(b);
+    });
+    list.appendChild(card);
+  });
+}
+function optStyle(i, j){
+  const q = Q[i], chosen = ans[i], reveal = q.a !== null && (chosen !== undefined || reviewed);
+  if (reveal) {
+    if (j === q.a) return 'border-emerald-400 bg-emerald-500/20 text-emerald-200';
+    if (j === chosen) return 'border-red-400 bg-red-500/20 text-red-200';
+    return 'border-slate-700 text-slate-500';
+  }
+  return chosen === j ? 'border-[#10b981] bg-[#10b981]/15 text-white' : 'border-slate-600 text-slate-200 bg-slate-900/40';
+}
+function pick(i, j){
+  if (reviewed) return;
+  const q = Q[i];
+  if (q.a !== null && ans[i] !== undefined) return; // locked once feedback is shown
+  if (q.a === null && ans[i] === j) delete ans[i]; else { ans[i] = j; tAns[i] = Math.round((Date.now() - t0) / 1000); }
+  render(); updateStats();
+}
+function updateStats(){
+  const n = Object.keys(ans).length;
+  $('answeredCt').textContent = n;
+  $('progBar').style.width = (n / Q.length * 100) + '%';
+}
+function finish(){
+  const un = Q.length - Object.keys(ans).length;
+  if (un && !confirm(un + ' question(s) unattempted. Finish now?')) return;
+  clearInterval(timerId);
+  report(Math.floor((Date.now() - t0) / 1000));
+}
+$('submitBtn').addEventListener('click', finish);
+$('submitBtn2').addEventListener('click', finish);
+
+/* ---------- Report ---------- */
+function report(sec){
+  const scored = Q.filter(q => q.a !== null);
+  let c = 0, w = 0;
+  scored.forEach(q => { const i = Q.indexOf(q); if (ans[i] !== undefined) (ans[i] === q.a ? c++ : w++); });
+  const un = scored.length - c - w, score = 4 * c - w, max = 4 * scored.length;
+  const att = Object.keys(ans).length, acc = c + w ? Math.round(c / (c + w) * 100) : 0;
+  const avg = att ? (sec / att).toFixed(1) : '0';
+  const chosen = [0, 0, 0, 0], keyed = [0, 0, 0, 0];
+  Object.values(ans).forEach(j => chosen[j]++);
+  scored.forEach(q => keyed[q.a]++);
+  const mx = Math.max(1, ...chosen, ...keyed);
+  const stat = (v, l, cls) => `<div class="bg-slate-800 rounded-xl p-3 text-center"><div class="text-xl font-extrabold ${cls || 'text-white'}">${v}</div><div class="text-xs text-slate-400 mt-0.5">${l}</div></div>`;
+  const rows = LET.map((l, j) => `<div class="mb-3"><div class="flex justify-between text-xs text-slate-300 mb-1"><span>Option ${l}</span><span>chosen ${chosen[j]}${scored.length ? ' · key ' + keyed[j] : ''}</span></div>
+    <div class="h-2 bg-slate-700 rounded-full overflow-hidden mb-1"><div class="h-full bg-[#10b981]" style="width:${chosen[j] / mx * 100}%"></div></div>
+    ${scored.length ? `<div class="h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-slate-400" style="width:${keyed[j] / mx * 100}%"></div></div>` : ''}</div>`).join('');
+  const r = $('reportView');
+  r.innerHTML = `
+    <div class="text-center bg-slate-800 rounded-2xl p-6 mb-4 border border-slate-700">
+      <p class="text-slate-400 text-sm">${scored.length ? 'Your NEET score' : 'Answers recorded'}</p>
+      <p class="text-5xl font-extrabold text-[#10b981] mt-1">${scored.length ? score : att}<span class="text-xl text-slate-500"> / ${scored.length ? max : Q.length}</span></p>
+      ${scored.length ? '' : '<p class="text-xs text-amber-300 mt-2">No answer key was found, so no score was calculated.</p>'}
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-2">
+      ${stat(c, 'Correct (+4)', 'text-emerald-400')}${stat(w, 'Wrong (−1)', 'text-red-400')}${stat(un + (Q.length - scored.length ? 0 : 0), 'Unattempted (0)', 'text-slate-300')}
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-5">
+      ${stat(acc + '%', 'Accuracy')}${stat(fmt(sec), 'Total time')}${stat(avg + 's', 'Per question')}
+    </div>
+    <div class="bg-slate-800 rounded-2xl p-4 mb-5 border border-slate-700">
+      <p class="font-semibold text-white mb-1">Option analysis</p>
+      <p class="text-xs text-slate-400 mb-3">Green bar: options you chose${scored.length ? '. Grey bar: options in the answer key.' : '.'}</p>${rows}
+    </div>
+    <div class="flex gap-3">
+      <button id="reviewBtn" class="flex-1 py-3.5 rounded-xl border border-[#10b981] text-[#10b981] font-bold">${scored.length ? 'Review answers' : 'Review my answers'}</button>
+      <button id="againBtn" class="flex-1 py-3.5 rounded-xl bg-[#10b981] text-slate-900 font-bold">New quiz</button>
+    </div>`;
+  $('quizView').classList.add('hidden'); r.classList.remove('hidden');
+  $('reviewBtn').addEventListener('click', () => {
+    if (!scored.length) { sheet(sec); return; }
+    reviewed = true; render();
+    $('reportView').classList.add('hidden'); $('quizView').classList.remove('hidden');
+    $('submitBtn').textContent = 'Report'; $('submitBtn').onclick = () => { $('quizView').classList.add('hidden'); $('reportView').classList.remove('hidden'); window.scrollTo(0, 0); };
+    $('submitBtn2').classList.add('hidden'); window.scrollTo(0, 0);
+  });
+  $('againBtn').addEventListener('click', () => location.reload());
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Answer sheet (used when no answer key was found) ---------- */
+function sheet(sec){
+  const r = $('reportView');
+  const val = i => ans[i] !== undefined ? LET[ans[i]] : '—';
+  const line = Q.map((q, i) => q.n + '-' + val(i)).join('  ');
+  const chips = Q.map((q, i) => `<div class="rounded-xl border py-2 text-center ${ans[i] !== undefined ? 'border-[#10b981] bg-[#10b981]/15 text-white' : 'border-slate-700 text-slate-500'}"><div class="text-[11px] text-slate-400">${q.n}</div><div class="text-lg font-extrabold">${val(i)}</div></div>`).join('');
+  r.innerHTML = `
+    <h2 class="text-xl font-extrabold text-white mb-1">Your answers</h2>
+    <p class="text-sm text-slate-400 mb-4">No answer key was found. Here are the options you chose, so you can check them against your book’s key.</p>
+    <div class="grid grid-cols-5 gap-2 mb-4">${chips}</div>
+    <p class="font-mono text-sm text-slate-200 bg-slate-800 rounded-xl p-3 mb-4 leading-relaxed break-words">${line}</p>
+    <div class="flex gap-3">
+      <button id="copyBtn" class="flex-1 py-3.5 rounded-xl border border-[#10b981] text-[#10b981] font-bold">Copy answers</button>
+      <button id="backBtn" class="flex-1 py-3.5 rounded-xl bg-[#10b981] text-slate-900 font-bold">Back to report</button>
+    </div>`;
+  $('copyBtn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(line); $('copyBtn').textContent = 'Copied'; }
+    catch (e) { $('copyBtn').textContent = 'Copy not allowed'; }
+  });
+  $('backBtn').addEventListener('click', () => report(sec));
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Inputs ---------- */
+$('buildBtn').addEventListener('click', () => {
+  const t = $('pasteArea').value.trim();
+  if (!t) { say('Paste some MCQs first.', true); return; }
+  startQuiz(t);
+});
+
+const SAMPLE = `NEET Biology Practice – Page 1
+
+1. The powerhouse of the cell is:
+(A) Ribosome (B) Mitochondria (C) Golgi apparatus (D) Lysosome
+
+2. The number of chromosomes in a human somatic cell is:
+(A) 23 (B) 44 (C) 46 (D) 48
+
+3. Which enzyme unwinds the DNA double helix during replication?
+(A) DNA ligase (B) Helicase (C) DNA polymerase (D) Primase
+
+4. The light reaction of photosynthesis takes place in the:
+(A) Stroma (B) Matrix (C) Thylakoid membrane (D) Cristae
+
+5. Which plant hormone promotes fruit ripening?
+(A) Auxin (B) Gibberellin (C) Cytokinin (D) Ethylene
+
+6. Which blood group is the universal donor?
+(A) AB positive (B) O negative (C) A negative (D) B positive
+
+7. The functional unit of the kidney is the:
+(A) Neuron (B) Nephron (C) Alveolus (D) Villus
+
+8. Double fertilisation is a characteristic feature of:
+(A) Gymnosperms (B) Bryophytes (C) Angiosperms (D) Pteridophytes
+
+9. Which RNA carries amino acids to the ribosome?
+(A) mRNA (B) rRNA (C) tRNA (D) snRNA
+
+10. The net gain of ATP in glycolysis per glucose molecule is:
+(A) 2 (B) 4 (C) 8 (D) 38
+
+Answer Key: 1-B 2-C 3-B 4-C 5-D 6-B 7-B 8-C 9-C 10-A`;
+$('sampleLink').addEventListener('click', e => {
+  e.preventDefault();
+  $('pasteArea').value = SAMPLE;
+  startQuiz(SAMPLE);
+});
+
+/* ---------- PWA ---------- */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $('installBtn').classList.remove('hidden'); });
+$('installBtn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt(); await deferredPrompt.userChoice;
+  deferredPrompt = null; $('installBtn').classList.add('hidden');
+});
+window.addEventListener('appinstalled', () => $('installBtn').classList.add('hidden'));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</body>
+</html>
